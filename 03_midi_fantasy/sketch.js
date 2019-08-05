@@ -4,22 +4,21 @@ function Key(index) {
     this.type = MIDI_Message.NOTE_OFF;
     this.channel = 0;
     this.velocity = 0;
-    this.colour_off = color(0, 0, 10);
-    this.colour_on = _.range(16).map(i => color(Math.round((i + 7) % 16 * 360 / 16), 100, 100, 1));
+    this.colour_off = [0, 0, 1, 0.8];
+    this.colour_on = [0, 0, 100, 1];
 
     this.draw = function () {
         let w = width / 128;
-        let h = 50;
+        let h = height;
         left_edge = index * w;
 
         // Always draw the empty key first, assuming note is off
-        fill(this.colour_off);
-        rect(left_edge, height - h, w - 4, height);
+        // fill(this.colour_off);
+        // rect(left_edge, height - h, 2, height);
         // Draw coloured key based on velocity (will end up transparent for NOTE_OFF since velocity=0)
-        this.colour_on[this.channel]._array[3] = this.velocity;
-        // console.log(this.colour_on[this.channel]);
-        fill(this.colour_on[this.channel]);
-        rect(left_edge, height - h, w - 4, height);
+        this.colour_on[3] = this.velocity * 0.2;
+        fill(this.colour_on);
+        rect(left_edge, h/3, 2, height/3);
     }
 }
 
@@ -41,6 +40,9 @@ function setup() {
     // Override onMIDIMessage callback with custom function
     midiInput.onMIDIMessage = onMIDIMessage;
 
+    mic = new p5.AudioIn();
+    mic.start();
+
     // Key display
     var NUM_KEYS = 128;
     for (var i = 0; i < NUM_KEYS; i++) {
@@ -51,7 +53,7 @@ function setup() {
 }
 
 function draw() {
-    background(0, 0.5);
+    background(0, 0.1);
 
     for (var i = 0; i < keys.length; i++) {
         keys[i].draw();
@@ -88,18 +90,25 @@ function onMIDIMessage(data) {
 function LightBlob() {
     this.x = random(width);
     this.y = random(height);
-    this.radius = random(10, 20);
-    this.color = [random(255), random(255), random(255)];
+    this.radius = random(10, 30);
+    this.color = [
+        random(150, 300),
+        random(80, 100),
+        random(80, 100)
+    ];
     this.vigor = 2;
-    this.decay = 1;
+    this.decay = 0.95;
     this.velocity = random(0, 2);
 
     this.draw = function() {
+        this.color[0] += random(-3, 3);
         fill(this.color[0], this.color[1], this.color[2]);
         for (let i = 0; i < 10; i++) {
+            fill(this.color[0], this.color[1], this.color[2], i / 10);
             this.x = this.x + random(-this.vigor, this.vigor);
             this.y = this.y + random(-this.vigor, this.vigor);
-            ellipse(this.x, this.y, this.radius, this.radius);    
+            let radius = 2 + (10 - i)/10 * this.radius;
+            ellipse(this.x, this.y, radius, radius);
         }
         this.radius *= this.decay;
     }
