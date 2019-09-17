@@ -1,17 +1,18 @@
+// COLOR SCHEME
+// https://coolors.co/2f2f2f-e65f5c-73eedc-ffff82-ffffff
+let black = "#2F2F2F", red = "#E65F5C", blue = "#73EEDC", yellow = "#FFFF82", white = "#FFFFFF";
 let colorPalette = [
-    "#010059",
-    "#52437b",
-    "#ff7a8a",
-    "#fcf594"
-]; // https://colorhunt.co/palette/150928
+    red, blue, yellow
+];
 
-let fft;
-let fftBands;
-let audio;
-
+// AUDIO INPUTS
+let audio, midiInput;
+let fft, fftBands, wave;
+// TRACKS
 let epComp;
 let epLines = {};
 
+// DRAWING LAYERS
 let layer1, layer2, layer3, layer4, layer5;
 
 function windowResized() {
@@ -39,70 +40,22 @@ function setup() {
     // Override onMIDIMessage callback with custom function
     midiInput.onMIDIMessage = onMIDIMessage;
 
-    epComp = new EPComp();
-
-    // Drawing layers
-    
-    layer1 = new Layer();
-    layer1.draw = function () {
-        me = this.canvas;
-        me.clear();
-
-        me.noStroke();
-        
-        me.fill(255, 0, 0);
-        me.ellipse(mouseX, mouseY, 200, 200);
-    }
-
-    layer2 = new Layer();
-    layer2.canvas.strokeWeight(3);
-    layer2.draw = function () {
-        me = this.canvas;
-
-        if (frameCount % 100 == 0) {
-            me.clear();
-        }
-
-        me.ellipse(random(width), random(height), 30, 30);
-    }
-
-    layer3 = new Layer();
-    layer3.draw = function () {
-        me = this.canvas;
-        me.clear();
-
-        me.noStroke();
-        
-        me.fill(255, 255, 0);
-        me.ellipse(mouseX, mouseY, 150, 150);
-    }
+    // Layers
+    layer1 = new Layer(layer1Setup, layer1Draw);
+    layer2 = new Layer(layer2Setup, layer2Draw);
 }
 
 function draw() {
-    background(0, 90);
-
-    // FFT
+    background(black);
+    // Analyze audio
     fftBands = fft.analyze();
     wave = fft.waveform();
 
-    // // console.log(wave);
-    // var levelLeft = audio.amplitude.getLevel(0);
-    // var sizeLeft = map(levelLeft, 0, 1, 0, height);
-    // ellipse(width/4, height/2, sizeLeft, sizeLeft);
-
-    for (let note of Object.keys(epLines)) {
-        epLines[note].draw();
-    }
-
-    epComp.fall();
-    epComp.draw();
-
-    // electricPianoNotes.forEach(note => {
-    //   note.draw();
-    // });
+    // Draw layers
+    layer2.show();
+    layer1.show();
 }
 
-let firstNote = 0;
 function onMIDIMessage(data) {
     msg = new MIDI_Message(data.data);
     // console.log(msg);
@@ -122,6 +75,25 @@ function onMIDIMessage(data) {
     }
 }
 
+// LAYER 1
+function layer1Setup(canvas) {
+    epComp = new EPComp();
+}
+function layer1Draw(canvas) {
+    canvas.clear();
+    epComp.fall();
+    epComp.draw(canvas);
+}
+
+// LAYER 2
+function layer2Setup(canvas) {}
+function layer2Draw(canvas) {
+    canvas.clear();
+    for (let note of Object.keys(epLines)) {
+        epLines[note].draw(canvas);
+    }
+}
+
 class EPComp {
     constructor() {
         this.minHeight = height - height / 3;
@@ -130,23 +102,23 @@ class EPComp {
         this.wave = [];
 
         // Draw the waveform
-        this.draw = function () {
-            push();
-            stroke(255);
-            strokeWeight(this.thickness);
+        this.draw = function (c) {
+            c.push();
+            c.stroke(255);
+            c.strokeWeight(this.thickness);
             // fill(random(255), 100, 100);
-            fill(0);
+            c.fill(black);
 
-            beginShape();
-            vertex(width / 4, this.minHeight);
+            c.beginShape();
+            c.vertex(width / 4, this.minHeight);
             for (var i = 0; i < this.wave.length; i++) {
                 var x = width / 4 + i * width / this.wave.length / 2;
                 var y = this.height - 100 - this.wave[i] * 100;
-                vertex(x, y);
+                c.vertex(x, y);
             }
-            vertex(3 * width / 4, this.minHeight);
-            endShape(CLOSE);
-            pop();
+            c.vertex(3 * width / 4, this.minHeight);
+            c.endShape(CLOSE);
+            c.pop();
         };
 
         // Update the waveform
@@ -180,15 +152,15 @@ class EPLine {
         this.color = random(colorPalette);
         this.thickness = 5;
 
-        this.draw = function () {
+        this.draw = function (c) {
             let xpos = this.noteXPositions[note];
             if (xpos) {
-                fill(this.color);
+                c.fill(this.color);
                 // noFill();
-                stroke(255);
-                strokeWeight(this.thickness);
+                c.stroke(255);
+                c.strokeWeight(this.thickness);
 
-                rect(xpos, height / 3, width / 12, height / 3);
+                c.rect(xpos, height / 3, width / 12, height / 3);
             }
         };
     }
