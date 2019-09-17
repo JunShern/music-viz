@@ -1,3 +1,12 @@
+var fft;
+var fftBands;
+var ampLeft, ampRight;
+var audio;
+
+var p;
+let playing = true;
+let pauseButton;
+let maxLength;
 
 function Key(index) {
     this.index = index;
@@ -35,14 +44,19 @@ function setup() {
     createCanvas(windowWidth, windowHeight);
     colorMode(HSB); // Max values: 360, 100, 100, 1
     noStroke();
+    angleMode(DEGREES);
     frameRate(10);
 
+    // Audio input
+    audio = new p5.AudioIn();
+    audio.start();
+    fft = new p5.FFT();
+    fft.setInput(audio);
+
+    // MIDI input
     midiInput = new MIDIInput();
     // Override onMIDIMessage callback with custom function
     midiInput.onMIDIMessage = onMIDIMessage;
-
-    mic = new p5.AudioIn();
-    mic.start();
 
     // Key display
     var NUM_KEYS = 128;
@@ -56,9 +70,25 @@ function setup() {
 function draw() {
     background(0, 0.9);
 
-    for (var i = 0; i < keys.length; i++) {
-        keys[i].draw();
+    // FFT
+    fftBands = fft.analyze();
+    wave = fft.waveform();
+    
+    push();
+    stroke(255);
+    strokeWeight(2);
+    noFill();
+    translate(width/2, height/2);
+    beginShape();
+    for (var i = 0; i < wave.length; i++) {
+        var r = height / 4 + wave[i] * height/2;
+        var x = r * cos(i * 360 / wave.length);
+        var y = r * sin(i * 360 / wave.length);
+        vertex(x, y);
     }
+    endShape(CLOSE);
+    pop();
+
     // Remove dead lightBlobs
     for (let key in lightBlobs) {
         lightBlobs[key].draw();
@@ -77,16 +107,12 @@ function onMIDIMessage(data) {
     keys[msg.note].velocity = Math.round(msg.velocity / 127 * 100) / 100;
 
     // Light up
-    if (msg.type === MIDI_Message.NOTE_ON) {
-        lightBlobs[msg.note] = new Koi;
-    } else if (msg.type === MIDI_Message.NOTE_OFF) {
+    if (msg.type === MIDI_Message.NOTE_OFF || msg.velocity < 0.01 || msg.cmd == 8) {
         lightBlobs[msg.note].endLife();
+    } else if (msg.type === MIDI_Message.NOTE_ON) {
+        lightBlobs[msg.note] = new Koi;
     }
 }
-
-// function keyPressed() {
-//     lightBlobs[1] = new LightBlob;
-// }
 
 class LightBlob {
     constructor() {
@@ -113,6 +139,9 @@ class LightBlob {
             }
             this.radius *= this.decay;
         };
+        this.endLife = function () {
+            this.decay = 0.70;
+        }
     }
 }
 
@@ -161,24 +190,24 @@ class Koi {
             this.spine.push(pos);
         }
 
-        this.endLife = function() {
+        this.endLife = function () {
             this.decay = 0.70;
         }
 
-        this.drawOutline = function() {
+        this.drawOutline = function () {
             noFill();
             stroke(this.color[0], this.color[1], this.color[2], this.life);
             strokeWeight(1);
             beginShape();
-            for (let i=0; i<this.spine.length-1; i++) {
-                let forwardVec = this.spine[i].plus(this.spine[i+1].times(-1));
+            for (let i = 0; i < this.spine.length - 1; i++) {
+                let forwardVec = this.spine[i].plus(this.spine[i + 1].times(-1));
                 let perpendicularVec = new Vec2(-forwardVec.y, forwardVec.x);
                 let vertex = this.spine[i].plus(perpendicularVec.times(this.spineSegments[i]));
                 curveVertex(vertex.x, vertex.y);
             }
-            curveVertex(this.spine[this.spine.length-1].x, this.spine[this.spine.length-1].y);
-            for (let i=this.spine.length-2; i>=0; i--) {
-                let forwardVec = this.spine[i+1].plus(this.spine[i].times(-1));
+            curveVertex(this.spine[this.spine.length - 1].x, this.spine[this.spine.length - 1].y);
+            for (let i = this.spine.length - 2; i >= 0; i--) {
+                let forwardVec = this.spine[i + 1].plus(this.spine[i].times(-1));
                 let perpendicularVec = new Vec2(-forwardVec.y, forwardVec.x);
                 let vertex = this.spine[i].plus(perpendicularVec.times(this.spineSegments[i]));
                 curveVertex(vertex.x, vertex.y);
@@ -199,12 +228,12 @@ class Koi {
             // Circular buffer
             this.spine.shift(); // Remove the oldest
 
-            for (let i=0; i<5; i++) {
+            for (let i = 0; i < 5; i++) {
                 push();
                 translate(this.dir.x * 2 * i, this.dir.y * 2 * i);
                 this.color[0] += random(-5, 5);
                 this.drawOutline();
-                pop();    
+                pop();
             }
             this.life *= this.decay;
         };
