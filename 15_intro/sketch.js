@@ -36,9 +36,12 @@ function preload() {
         loadFont('resources/fonts/Raleway-Black.ttf'),
     ];
 }
+let resizeFactor;
 
 function setup() {
-    cnv = createCanvas(1280, 720);
+    cnv = createCanvas(1920, 1080);
+    resizeFactor = height / 720; // Resize from original 1080x720 application
+    frameRate(30);
     noStroke();
     angleMode(DEGREES);
 
@@ -120,7 +123,7 @@ function draw() {
     } else if (mtcMillis > 30000) {
         layerBass.draw();
         layerPiano.draw();
-    } else if (mtcMillis < 30000) {
+    } else if (mtcMillis < 30000 && mtcMillis > 0) {
         layerEPLine.draw();
         layerEPComp.draw();
         layerStrings.draw();
@@ -251,7 +254,7 @@ function drawPiano(canvas) {
         canvas.vertex(0, height);
         for (var i = 0; i < waterWave.length; i++) {
             var x = width * i / waterWave.length;
-            var y = height - waterLevel + 50 * waterWave[i];
+            var y = height - waterLevel + (50 * resizeFactor * waterWave[i]);
             canvas.vertex(x, y);
         }
         canvas.vertex(width, height);
@@ -294,7 +297,7 @@ class PoseKeypoints {
 
         let scaleFactor, centerPoint;
         if (mtcMillis < 119800) {
-            scaleFactor = 1;
+            scaleFactor = resizeFactor;
             centerPoint = createVector(1920 / 2, 1080 / 2);
         } else {
             // Scale to % of canvas
@@ -502,7 +505,7 @@ class Ring {
     constructor(pos, radius) {
         this.pos = pos;
         this.radius = radius;
-        this.thickness = 2;
+        this.thickness = 2 * resizeFactor;
     }
 
     draw(cnv) {
@@ -515,7 +518,7 @@ class Ring {
 }
 class Wormhole {
     constructor() {
-        this.ringRadius = 10;
+        this.ringRadius = 10 * resizeFactor;
         this.rings = [];
         this.maxNumRings = 10;
         this.pos = createVector(width / 2, height / 2);
@@ -574,7 +577,7 @@ class Wormhole {
         this.newRing();
 
         this.pos.add(this.vel);
-        if (mtcMillis < 164000) {
+        if (mtcMillis < 149800) {
             if (this.pos.x < 0 || this.pos.x > width) {
                 this.vel.x *= -1;
             }
@@ -607,7 +610,7 @@ function drawStrobe(canvas) {
 // BRIDGE LAYER
 function setupBridge(canvas) {
     canvas.textFont(fonts[0]);
-    canvas.textSize(200);
+    canvas.textSize(200 * resizeFactor);
     canvas.background(black);
     canvas.fill(white);
     canvas.textAlign(CENTER);
@@ -639,9 +642,9 @@ function drawPixelGrid(canvas) {
 
         // Draw fire
         let timeRatio = (mtcMillis - 170000) / (200000 - 170000);
-        let maxHeight = 2 * height * timeRatio;
+        let maxHeight = 3 * height * timeRatio;
         if (mtcMillis < 202000) {
-            for (let i = 0; i < 5 + timeRatio*5; i++) {
+            for (let i = 0; i < 5 + timeRatio*10; i++) {
                 let p = new FireParticle(maxHeight);
 
                 if (mtcMillis > 189866) {
@@ -663,7 +666,7 @@ function drawPixelGrid(canvas) {
             // Draw pixel
             // Increase probability of redness if close to edges
             let distFromCenter = abs(particles[n].x - width/2);
-            let distFromBottom = height - 50 - particles[n].y;
+            let distFromBottom = height - particles[n].bottomPadding - particles[n].y;
             if (
                 random(particles[n].maxWidth) < distFromCenter || 
                 random(particles[n].maxHeight / 2) < distFromBottom
@@ -696,23 +699,21 @@ function drawPixelGrid(canvas) {
 
         // canvas.background(0);
         // Draw background
-        let timeRatio = (mtcMillis - 199800) / (210000 - 199800);
+        let timeRatio = (mtcMillis - 199800) / (213000 - 199800);
         let expansion = timeRatio * width/2;
-        for (let n = 0; n < 50; n++) {
-            let x = int(random(width/2 - expansion, width/2 + expansion));
-            let y = int(random(height/2 - expansion, height/2 + expansion));
+        for (let n = 0; n < 100; n++) {
+            let angle = random(360);
+            let x = width/2 + expansion * cos(angle);
+            let y = height/2 + expansion * sin(angle);
             let i = int(x / w);
             let j = int(y / h);
             x = i * w;
             y = j * h;
             canvas.fill(random([black, 50]));
-            if (random(100) > 99) {
-                canvas.fill(random(colorPalette));
-            }
             canvas.rect(x, y, w, h);
         }
 
-        for (let n = 0; n < 20; n++) {
+        for (let n = 0; n < 30; n++) {
             let i = int(random(resolutionX / 4, 3 * resolutionX / 4));
             let j = int(random(0, resolutionY));
 
@@ -727,23 +728,17 @@ function drawPixelGrid(canvas) {
             }
         }
     }
-    // // Draw text
-    // if (mtcMillis > 199900) {
-    // }
-    // // if (!strobe && ) {
-    // //     canvas.filter(GRAY);
-    // // }
 }
 class FireParticle {
     constructor(maxHeight) {
         this.maxHeight = maxHeight;
         this.maxWidth = maxHeight * 100 / height;
+        this.bottomPadding = 50 * resizeFactor;
         this.x = random(width/2 - this.maxWidth, width/2 + this.maxWidth);
-        this.y = height - 50 - (abs(this.x - width/2) ** 1.1) / 5; // Curve up as we get further from the center
-        this.vx = random(-1, 1);
-        this.vy = random(-5, -1);
+        this.y = height - this.bottomPadding - (abs(this.x - width/2) ** 1.1) / 5; // Curve up as we get further from the center
+        this.vx = random(-1, 1) * resizeFactor;
+        this.vy = random(-5, -1) * resizeFactor;
         this.alpha = 255;
-        this.d = 20;
     }
 
     finished() {
@@ -754,16 +749,16 @@ class FireParticle {
         this.x += this.vx;
         this.y += this.vy;
         this.alpha = 255 - 255 * (height - this.y) / this.maxHeight;
-        this.d -= random(0.05, 0.1);
     }
 }
 
 class EPComp {
     constructor() {
-        this.minHeight = height - height / 3;
+        this.minHeight = height - height / 4;
         this.height = this.minHeight;
-        this.thickness = 5;
+        this.thickness = 5 * resizeFactor;
         this.wave = new Array(1024).fill(0);
+        this.waveAmplitude = 100 * resizeFactor;
     }
 
     // Draw the waveform
@@ -779,7 +774,7 @@ class EPComp {
         cnv.vertex(0, height);
         for (var i = 0; i < this.wave.length; i++) {
             var x = xOffset + xWidth * (i / this.wave.length);
-            var y = this.height - 100 - this.wave[i] * 100;
+            var y = this.height - this.waveAmplitude - this.wave[i] * this.waveAmplitude;
             cnv.vertex(x, y);
         }
         cnv.vertex(width, height);
@@ -792,7 +787,7 @@ class EPComp {
         // cnv.vertex(xOffset, this.minHeight);
         for (var i = 0; i < this.wave.length; i++) {
             var x = xOffset + xWidth * (i / this.wave.length);
-            var y = this.height - 100 - this.wave[i] * 100;
+            var y = this.height - this.waveAmplitude - this.wave[i] * this.waveAmplitude;
             cnv.vertex(x, y);
         }
         // cnv.vertex(xOffset + xWidth, this.minHeight);
@@ -808,24 +803,24 @@ class EPComp {
 
     // Waveform bounces up and down
     jump() {
-        this.height -= 50;
+        this.height -= (30 * resizeFactor);
         this.height = max(height / 4, this.height);
     }
 
     fall() {
         // Height dropping
-        this.height += 20; // Falling
+        this.height += 20 * resizeFactor; // Falling
         this.height = min(this.height, this.minHeight); // Floor
     }
 }
 
 class Strings {
     constructor() {
-        this.thickness = 5;
+        this.thickness = 5 * resizeFactor;
         this.numStrings = 0;
         this.pos = createVector(width / 2, height / 2);
-        this.vel = createVector(100, 100);
-        this.jitter = 500;
+        this.vel = createVector(100 * resizeFactor, 100 * resizeFactor);
+        this.jitter = 500 * resizeFactor;
     }
     draw(cnv) {
         cnv.push();
@@ -839,14 +834,14 @@ class Strings {
                 let y = height * 2 / 3;
                 let x = random(xOffset, xOffset + xWidth);
                 cnv.stroke(random(colorPalette));
-                cnv.strokeWeight(random(2, 5));
+                cnv.strokeWeight(random(2, 5) * resizeFactor);
                 cnv.line(x, y, x, 0);
                 cnv.line(x, y, width * (x - xOffset) / xWidth, height);
 
                 // Part two - campfire kindling
             } else if (mtcMillis < 103200) {
                 cnv.stroke(random(colorPalette));
-                cnv.strokeWeight(random(2, 5));
+                cnv.strokeWeight(random(2, 5) * resizeFactor);
                 cnv.line(
                     this.pos.x + random(-this.jitter, this.jitter),
                     this.pos.y + random(-this.jitter, this.jitter),
@@ -889,7 +884,7 @@ class EPLine {
         };
         this.note = note;
         this.color = colorPalette[this.note % colorPalette.length];
-        this.thickness = 5;
+        this.thickness = 5 * resizeFactor;
     }
 
     draw(cnv) {
@@ -899,10 +894,15 @@ class EPLine {
             cnv.strokeWeight(this.thickness);
 
             cnv.noFill();
-            if (mtcMillis > 20000) {
+            if (mtcMillis > 10266) {
                 cnv.fill(this.color);
+                cnv.noStroke();
             }
-            cnv.rect(xpos, height / 3, width / 12, height / 3);
+            if (mtcMillis < 20000) {
+                cnv.rect(xpos, height / 4, width / 12, height / 2);
+            } else {
+                cnv.rect(xpos, 0, width / 12, height);
+            }
         }
     }
 }
@@ -910,7 +910,7 @@ class EPLine {
 class Painter {
     constructor() {
         this.memory = [createVector(width / 2, height / 2)];
-        this.brushWidth = 5;
+        this.brushWidth = 5 * resizeFactor;
     }
 
     addPoint(vec) {
@@ -939,7 +939,7 @@ class Painter {
 
         } else if (mtcMillis > 109000) {
             cnv.stroke(random(colorPalette));
-            cnv.strokeWeight(5);
+            cnv.strokeWeight(5 * resizeFactor);
             cnv.beginShape(TRIANGLE_STRIP);
             for (var i = 0; i < this.memory.length; i++) {
                 var x = this.memory[i].x + random(-this.brushWidth, this.brushWidth);
@@ -990,12 +990,12 @@ class Painter {
 }
 class Paintdrop {
     constructor(originPoint) {
-        this.brushWidth = 5;
+        this.brushWidth = 5 * resizeFactor;
         this.vel = createVector(random(-5, 5), random(-10, 0));
         this.pos = p5.Vector.add(originPoint, createVector(random(-20, 20), random(-10, 0)));
         this.acc = createVector(0, 0.5);
-        this.radius = 8;
-        this.jitter = 2;
+        this.radius = 8 * resizeFactor;
+        this.jitter = 2 * resizeFactor;
         this.color = random([[32, 255], [230, 95, 92, 255]]);
         this.shape = [
             createVector(random(-this.radius, this.radius), random(-this.radius, this.radius)),
@@ -1038,8 +1038,8 @@ class Paintdrop {
 class Dot {
     constructor() {
         this.pos = createVector(random(width), random(height));
-        this.size = 10;
-        this.thickness = 1;
+        this.size = 10 * resizeFactor;
+        this.thickness = 1 * resizeFactor;
     }
     draw(cnv) {
         cnv.stroke(255);
@@ -1056,12 +1056,13 @@ class Neon {
         this.memory = [];
         this.maxLength = 6;
         // Balls
-        this.radius = 100;
+        this.radius = 100 * resizeFactor;
         this.pos = createVector(0, 0);
         this.velocity = createVector(20, 10);
         this.age = 1;
         this.aging = false;
         this.curveTightness = 1;
+        this.jitter = 3 * resizeFactor;
     }
 
     addRandomPoint() {
@@ -1092,27 +1093,27 @@ class Neon {
         let alpha = 255 * this.age;
         cnv.push();
         cnv.stroke(255, 0, 0, alpha);
-        cnv.strokeWeight(2);
+        cnv.strokeWeight(2 * resizeFactor);
         cnv.beginShape();
         for (let i = 0; i < this.memory.length; i++) {
-            cnv.curveVertex(this.memory[i].x + random(-2, 2), this.memory[i].y + random(-2, 2));
+            cnv.curveVertex(this.memory[i].x + random(-this.jitter, this.jitter), this.memory[i].y + random(-this.jitter, this.jitter));
         }
         cnv.endShape();
         cnv.pop();
 
         cnv.push();
         cnv.stroke(0, 0, 255, alpha);
-        cnv.strokeWeight(2);
+        cnv.strokeWeight(2 * resizeFactor);
         cnv.beginShape();
         for (let i = 0; i < this.memory.length; i++) {
-            cnv.curveVertex(this.memory[i].x + random(-2, 2), this.memory[i].y + random(-2, 2));
+            cnv.curveVertex(this.memory[i].x + random(-this.jitter, this.jitter), this.memory[i].y + random(-this.jitter, this.jitter));
         }
         cnv.endShape();
         cnv.pop();
 
         cnv.push();
         cnv.stroke(255, alpha);
-        cnv.strokeWeight(3);
+        cnv.strokeWeight(3 * resizeFactor);
         cnv.beginShape();
         for (let i = 0; i < this.memory.length; i++) {
             cnv.curveVertex(this.memory[i].x + random(-2, 2), this.memory[i].y + random(-2, 2));
@@ -1124,15 +1125,15 @@ class Neon {
 
 class Sky {
     constructor() {
-        this.thickness = 5;
+        this.thickness = 5 * resizeFactor;
         this.numBars = 0;
     }
     draw(cnv) {
-        let horizonHeight = 200;
+        let horizonHeight = 0.3 * height;
         if (mtcMillis < 130000) {
             for (var i = 0; i < this.numBars; i++) {
                 cnv.stroke(0);
-                cnv.strokeWeight(20);
+                cnv.strokeWeight(20 * resizeFactor);
                 for (let i = 0; i < 5; i++) {
                     let x = random(width);
                     let y = height - horizonHeight * sin(180 * x / width);
@@ -1157,7 +1158,7 @@ class Starfield {
         this.maxEdges = 10;
         // Stars
         this.jitter = 1;
-        this.radius = 5;
+        this.radius = 5 * resizeFactor;
         this.life = false;
     }
 
