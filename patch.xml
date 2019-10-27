@@ -1,0 +1,60 @@
+<!DOCTYPE patchbay>
+<patchbay version="0.4.5" name="patch">
+ <output-sockets>
+  <socket client="ardour" name="ardour 1" type="jack-midi" exclusive="off">
+   <plug>EP Comp-2-t1/midi_out 1</plug>
+  </socket>
+  <socket client="ardour" name="Piano" type="jack-midi" exclusive="off">
+   <plug>Piano-t1-1-t1/midi_out 1</plug>
+  </socket>
+  <socket client="ardour" name="ardour_timecode" type="jack-midi" exclusive="off">
+   <plug>MTC out</plug>
+  </socket>
+  <socket client="ardour" name="ardour synth" type="jack-midi" exclusive="off">
+   <plug>synth-t1-1-t1/midi_out 1</plug>
+  </socket>
+  <socket client="ardour" name="EP Line 1" type="jack-midi" exclusive="off">
+   <plug>EP Line-1-t1/midi_out 1</plug>
+  </socket>
+  <socket client="ardour" name="Bass" type="jack-midi" exclusive="off">
+   <plug>electric_bass-t1-3-t1/midi_out 1</plug>
+  </socket>
+  <socket client="ardour" name="Strings" type="jack-midi" exclusive="off">
+   <plug>Violin 1-1-t1/midi_out 1</plug>
+  </socket>
+  <socket client="ardour" name="ardour audio" type="jack-audio" exclusive="off">
+   <plug>final_mix/audio_out 1</plug>
+   <plug>final_mix/audio_out 2</plug>
+  </socket>
+  <socket client="ardour" name="ardour monitor" type="jack-audio" exclusive="off">
+   <plug>final_mix/audio_out 1</plug>
+   <plug>final_mix/audio_out 2</plug>
+  </socket>
+ </output-sockets>
+ <input-sockets>
+  <socket client="a2j" name="a2j 1" type="jack-midi" exclusive="off">
+   <plug>Midi Through \[14\] \(playback\): Midi Through Port-0</plug>
+  </socket>
+  <socket client="PulseAudio JACK Source" name="PulseAudio JACK Source 1" type="jack-audio" exclusive="off">
+   <plug>front-left</plug>
+   <plug>front-right</plug>
+  </socket>
+  <socket client="system" name="system 1" type="jack-audio" exclusive="off">
+   <plug>playback_1</plug>
+   <plug>playback_2</plug>
+  </socket>
+ </input-sockets>
+ <slots/>
+ <cables>
+  <cable output="ardour 1" input="a2j 1" type="jack-midi"/>
+  <cable output="ardour_timecode" input="a2j 1" type="jack-midi"/>
+  <cable output="ardour synth" input="a2j 1" type="jack-midi"/>
+  <cable output="EP Line 1" input="a2j 1" type="jack-midi"/>
+  <cable output="Bass" input="a2j 1" type="jack-midi"/>
+  <cable output="Strings" input="a2j 1" type="jack-midi"/>
+  <cable output="ardour audio" input="PulseAudio JACK Source 1" type="jack-audio"/>
+  <cable output="ardour audio" input="system 1" type="jack-audio"/>
+  <cable output="Piano" input="a2j 1" type="jack-midi"/>
+ </cables>
+</patchbay>
+
