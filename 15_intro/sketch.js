@@ -8,12 +8,12 @@ let colorPalette = [
     red, blue, yellow
 ];
 let CHANNELS = {
-    "EPCOMP":0,
-    "EPLINE":1,
-    "STRINGS":2,
-    "BASS":3,
-    "PIANO":4,
-    "SYNTH":5,
+    "EPCOMP": 0,
+    "EPLINE": 1,
+    "STRINGS": 2,
+    "BASS": 3,
+    "PIANO": 4,
+    "SYNTH": 5,
 }
 
 // AUDIO INPUTS
@@ -22,12 +22,23 @@ let fft, fftBands, wave, amplitude;
 
 // DRAWING LAYERS
 let cnv;
-let layerEPComp, layerStrings, layerEPLine, layerSpectro, layerPiano, layerSynth,
-layerPrechorus;
+let layerEPComp, layerStrings, layerEPLine, layerPiano, layerSynth,
+    layerPrechorus, layerStarfield, layerStrobe, layerBridge, layerPixelGrid;
+let mtcMillis;
+let fonts;
+function preload() {
+    fonts = [
+        loadFont('resources/fonts/Kanit-Black.ttf'),
+        loadFont('resources/fonts/Anton-Regular.ttf'),
+        loadFont('resources/fonts/Kanit-Bold.ttf'),
+        loadFont('resources/fonts/Kanit-ExtraBold.ttf'),
+        loadFont('resources/fonts/MontserratSubrayada-Bold.ttf'),
+        loadFont('resources/fonts/Raleway-Black.ttf'),
+    ];
+}
 
 function setup() {
     cnv = createCanvas(1280, 720);
-    colorMode(HSB); // Max values: 360, 100, 100, 1
     noStroke();
     angleMode(DEGREES);
 
@@ -39,6 +50,7 @@ function setup() {
 
     // MIDI input
     midiInput = new MIDIInput();
+    mtcMillis = midiInput.getMTCMilliseconds();
 
     // Layers
     layerEPComp = new Layer(setupEPComp, drawEPComp);
@@ -47,6 +59,10 @@ function setup() {
     layerPiano = new Layer(setupPiano, drawPiano);
     layerBass = new Layer(setupBass, drawBass);
     layerSynth = new Layer(setupSynth, drawSynth);
+    layerStarfield = new Layer(setupStarfield, drawStarfield);
+    layerStrobe = new Layer(setupStrobe, drawStrobe);
+    layerBridge = new Layer(setupBridge, drawBridge);
+    layerPixelGrid = new Layer(setupPixelGrid, drawPixelGrid);
 }
 
 // To overcome Chrome autoplay policy
@@ -67,31 +83,52 @@ function draw() {
     amplitude = audio.amplitude.getLevel();
 
     // Draw layers
-    let mtc_millis = midiInput.getMTCMilliseconds();
-    // console.log(mtc_millis);
-    if (mtc_millis < 30000) {
-        layerEPLine.show();
-        layerEPComp.show();
-        layerStrings.show();
-    }
-    if (30000 < mtc_millis && mtc_millis < 79000) {
-        layerBass.show();
-        layerPiano.show();
-    }
-    if (79933 < mtc_millis && mtc_millis < 99200) {
-        layerSynth.show();
-        strings = new StringsRadial();
-    }
-    if (mtc_millis > 99200) {
-        layerStrings.show();
-    }
-    if (mtc_millis > 109000) {
-        layerPiano.show();
+    mtcMillis = midiInput.getMTCMilliseconds();
+    mtcBeatNumber = int(mtcMillis / 60000 * 96);
+    mtcBarNumber = int(mtcMillis / 2500);
+
+    // Clauses are ordered in time, from bottom to top
+    if (mtcMillis > 219600) {
+        layerBridge.draw();
+        // layerPiano.update();
+        // let blendedImg = layerStrings.getBlendImage(layerBridge, layerPiano, DARKEST);
+        // image(blendedImg, 0, 0, width, height);
+    } else if (mtcMillis > 169800) {
+        layerBridge.update();
+        layerPixelGrid.draw();
+        layerStrobe.draw();
+        if (mtcMillis > 218700 && mtcMillis < 219600) {
+            layerBridge.draw();
+        } else if (mtcMillis > 217333 && mtcMillis < 219600 && mtcMillis % 5) {
+            layerBridge.draw();
+        }
+    } else if (mtcMillis > 130000) {
+        layerStrings.update();
+        layerStarfield.update();
+        let blendedImg = layerStrings.getBlendImage(layerStrings, layerStarfield, MULTIPLY);
+        image(blendedImg, 0, 0, width, height);
+    } else if (mtcMillis > 109000) {
+        layerStrings.update();
+        layerStarfield.update();
+        let blendedImg = layerStrings.getBlendImage(layerStrings, layerStarfield, MULTIPLY);
+        image(blendedImg, 0, 0, width, height);
+        layerPiano.draw();
+    } else if (mtcMillis > 99200) {
+        layerStrings.draw();
+    } else if (mtcMillis > 79933) {
+        layerSynth.draw();
+    } else if (mtcMillis > 30000) {
+        layerBass.draw();
+        layerPiano.draw();
+    } else if (mtcMillis < 30000) {
+        layerEPLine.draw();
+        layerEPComp.draw();
+        layerStrings.draw();
     }
 
     // copy the sketch and move it over based on the speed
     shake = amplitude * 10;
-    if (mtc_millis < 30000) {
+    if (mtcMillis < 30000) {
         copy(cnv, 0, 0, width, height, int(random(-shake, shake)), int(random(-shake, shake)), width, height);
     }
 }
@@ -103,7 +140,7 @@ function setupEPComp(canvas) {
     // React to MIDI message
     midiInput.callbacks[CHANNELS.EPCOMP][MIDI_Message.NOTE_ON_CMD].push(function (msg) {
         epComp.jump();
-        if (midiInput.getMTCMilliseconds() > 9730) {
+        if (mtcMillis > 9730) {
             epComp.updateWave(wave);
         }
     });
@@ -138,7 +175,7 @@ function setupStrings(canvas) {
     strings = new Strings();
     // React to MIDI message
     midiInput.callbacks[CHANNELS.STRINGS][MIDI_Message.NOTE_ON_CMD].push(function (msg) {
-        if (midiInput.getMTCMilliseconds() > 16930) {
+        if (mtcMillis > 16930) {
             strings.numStrings++;
         }
     });
@@ -148,58 +185,10 @@ function setupStrings(canvas) {
     });
 }
 function drawStrings(canvas) {
-    if (midiInput.getMTCMilliseconds() < 99200) {
+    if (mtcMillis < 99200) {
         canvas.clear();
     }
     strings.draw(canvas);
-}
-
-// SPECTROGRAM LAYER
-let prechorus;
-function setupSpectro(canvas) {
-    canvas.colorMode(HSB, 255);
-    canvas.angleMode(DEGREES);
-    canvas.background(255);
-    canvas.rectMode(CENTER);
-
-    prechorus = new Threadweb();
-
-    // React to MIDI message
-    midiInput.callbacks[CHANNELS.EPCOMP][MIDI_Message.NOTE_ON_CMD].push(function (msg) {
-        prechorus.pos = createVector(random(width), random(height));
-    });
-}
-let speed = 2;
-function drawSpectro(canvas) {
-    prechorus.draw(canvas);
-    // speed = 100;
-    // canvas.fill(0);
-    // canvas.rect(width/2, height/2, 10, 10);    
-    canvas.image(canvas, -speed/2, -speed/2, width+speed, height+speed);
-}
-class Threadweb {
-    constructor() {
-        this.pos = createVector(random(width), random(height));
-        this.speed = 2;
-        this.color = random(colorPalette);
-    }
-    draw(cnv) {
-        cnv.stroke(colorPalette[0]);
-        cnv.line(random(width), 0, this.pos.x, this.pos.y);
-        cnv.line(random(width), height, this.pos.x, this.pos.y);
-        cnv.line(0, random(height), this.pos.x, this.pos.y);
-        cnv.line(width, random(height), this.pos.x, this.pos.y);
-
-        cnv.stroke(colorPalette[1]);
-        cnv.line(random(width), 0, this.pos.x, this.pos.y);
-        cnv.line(random(width), height, this.pos.x, this.pos.y);
-        cnv.line(0, random(height), this.pos.x, this.pos.y);
-        cnv.line(width, random(height), this.pos.x, this.pos.y);
-
-        cnv.noStroke();
-        cnv.fill(255);
-        cnv.ellipse(this.pos.x, this.pos.y, 10, 10);
-    }
 }
 
 // PIANO LAYER
@@ -220,12 +209,12 @@ function setupPiano(canvas) {
 
     // React to MIDI message
     midiInput.callbacks[CHANNELS.PIANO][MIDI_Message.NOTE_ON_CMD].push(function (msg) {
-        if (midiInput.getMTCMilliseconds() < 60000) {
+        if (mtcMillis < 60000) {
             paintdrop = new Paintdrop(random(
-                poseKeypoints.getNormalizedPoints(createVector(width/2, height/2))
-                ));
+                poseKeypoints.getNormalizedPoints(createVector(width / 2, height / 2))
+            ));
             paintdrops.push(paintdrop);
-        } else if (midiInput.getMTCMilliseconds() < 79266) {
+        } else if (mtcMillis < 79266) {
             paintdrop = new Paintdrop(createVector(random(width), random(height - waterLevel)));
             paintdrops.push(paintdrop);
             // Update water wave
@@ -237,16 +226,24 @@ function setupPiano(canvas) {
 }
 function drawPiano(canvas) {
     canvas.clear();
+    // if (mtcMillis > 109000) {
+    //     canvas.background(white);
+    // }
+
+    let shift = 0;
+    if (mtcMillis > 127400 && mtcMillis < 131000) {
+        shift = height * (mtcMillis - 127400) / (130000 - 127400);
+    }
 
     // Get pose detection output
     poseKeypoints.update();
-    let points = poseKeypoints.getNormalizedPoints(createVector(width/2, height/2));
+    let points = poseKeypoints.getNormalizedPoints(createVector(width / 2, height / 2 + shift));
 
-    if (midiInput.getMTCMilliseconds() < 109000) {
+    if (mtcMillis < 109000) {
         // Water level rising
         canvas.fill(black);
         canvas.noStroke();
-        waterLevel = map(midiInput.getMTCMilliseconds(), 60000, 76000, 0, height);
+        waterLevel = map(mtcMillis, 60000, 79000, 0, height);
         // Draw water using wave
         canvas.noStroke();
         canvas.fill(black);
@@ -262,7 +259,7 @@ function drawPiano(canvas) {
         //canvas.rect(0, height - waterLevel, width, waterLevel);
 
         // Splash paintdrops on every keypress
-        paintdrops.forEach(function(paintdrop) {
+        paintdrops.forEach(function (paintdrop) {
             paintdrop.draw(canvas);
             if (paintdrop.pos.y > height - waterLevel) {
                 paintdrop.color = [255, 255];
@@ -284,20 +281,27 @@ function drawPiano(canvas) {
 class PoseKeypoints {
     constructor() {
         this.points = [];
+        this.centerPoint = createVector(width / 2, height / 2);
     }
 
     getNormalizedPoints(pos) {
-    
-        // Find min/max bounds to rescale
-        let minX = this.points.reduce( (prev,curr) => prev.x < curr.x ? prev : curr, 0).x;
-        let maxX = this.points.reduce( (prev,curr) => prev.x > curr.x ? prev : curr, width).x;
-        let minY = this.points.reduce( (prev,curr) => prev.y < curr.y ? prev : curr, 0).y;
-        let maxY = this.points.reduce( (prev,curr) => prev.y > curr.y ? prev : curr, height).y;
-        // Scale to 60% of canvas
-        let scaleFactor = 0.6 * min( width / (maxX - minX), height / (maxY - minY) );
 
-        // Find center
-        let centerPoint = createVector( minX + (maxX - minX) / 2, minY + (maxY - minY) / 2 );
+        // Find min/max bounds to rescale
+        let minX = this.points.reduce((prev, curr) => prev.x < curr.x ? prev : curr, 0).x;
+        let maxX = this.points.reduce((prev, curr) => prev.x > curr.x ? prev : curr, width).x;
+        let minY = this.points.reduce((prev, curr) => prev.y < curr.y ? prev : curr, 0).y;
+        let maxY = this.points.reduce((prev, curr) => prev.y > curr.y ? prev : curr, height).y;
+
+        let scaleFactor, centerPoint;
+        if (mtcMillis < 119800) {
+            scaleFactor = 1;
+            centerPoint = createVector(1920 / 2, 1080 / 2);
+        } else {
+            // Scale to % of canvas
+            scaleFactor = 0.6 * min(width / (maxX - minX), height / (maxY - minY));
+            // Find center
+            centerPoint = createVector(minX + (maxX - minX) / 2, minY + (maxY - minY) / 2);
+        }
 
         // Normalize
         let normalizedPoints = this.points.map(point => p5.Vector.sub(point, centerPoint).mult(scaleFactor).add(pos));
@@ -306,8 +310,7 @@ class PoseKeypoints {
 
     update() {
         // Get current playback time
-        let mtc_millis = midiInput.getMTCMilliseconds();
-        let frameIndex = int(30 * mtc_millis / 1000); // Video was recorded in 30 FPS
+        let frameIndex = int(30 * mtcMillis / 1000); // Video was recorded in 30 FPS
         // Read json file
         frameIndex = min(max(frameIndex - 265, 0), 7779); // Magic numbers to align video with audio time
         let frameString = String(frameIndex).padStart(5, "0");
@@ -322,20 +325,22 @@ class PoseKeypoints {
                 let leftHand = json.people[i].hand_left_keypoints_2d;
                 let rightHand = json.people[i].hand_right_keypoints_2d;
                 let body = json.people[i].pose_keypoints_2d;
-    
+                // this.centerPoint = createVector(body[3], body[4]); // Take the neck base as the center
+
                 // Pick which keypoints we want to display, and in what order
                 // https://github.com/CMU-Perceptual-Computing-Lab/openpose/blob/master/doc/output.md
-    
+
                 // Right Hand
-                [0,1,2,3,4,3,2,1,0,5,6,7,8,7,6,5,0,9,10,11,12,11,10,9,0,13,14,15,16,15,14,13,0,17,18,19,20,19,18,17,0].forEach(function(pose_idx) {
+                [0, 1, 2, 3, 4, 3, 2, 1, 0, 5, 6, 7, 8, 7, 6, 5, 0, 9, 10, 11, 12, 11, 10, 9, 0, 13, 14, 15, 16, 15, 14, 13, 0, 17, 18, 19, 20, 19, 18, 17, 0].forEach(function (pose_idx) {
                     let x = rightHand[pose_idx * 3];
                     let y = rightHand[pose_idx * 3 + 1];
                     if (x != 0 && y != 0) {
                         poseKeypoints.points.push(createVector(x, y));
                     }
                 });
+                // if (mtcMillis < 149266) {
                 // Right arm
-                [4,3,2,1].forEach(function(pose_idx) {
+                [4, 3, 2, 1].forEach(function (pose_idx) {
                     let x = body[pose_idx * 3];
                     let y = body[pose_idx * 3 + 1];
                     if (x != 0 && y != 0) {
@@ -343,7 +348,7 @@ class PoseKeypoints {
                     }
                 });
                 // Head
-                [8,1,17,15,0,16,18,1,8].forEach(function(pose_idx) {
+                [8, 1, 17, 15, 0, 16, 18, 1, 8].forEach(function (pose_idx) {
                     let x = body[pose_idx * 3];
                     let y = body[pose_idx * 3 + 1];
                     if (x != 0 && y != 0) {
@@ -351,7 +356,7 @@ class PoseKeypoints {
                     }
                 });
                 // Left arm
-                [1,5,6,7].forEach(function(pose_idx) {
+                [1, 5, 6, 7].forEach(function (pose_idx) {
                     let x = body[pose_idx * 3];
                     let y = body[pose_idx * 3 + 1];
                     if (x != 0 && y != 0) {
@@ -359,7 +364,7 @@ class PoseKeypoints {
                     }
                 });
                 // Left Hand
-                [0,1,2,3,4,3,2,1,0,5,6,7,8,7,6,5,0,9,10,11,12,11,10,9,0,13,14,15,16,15,14,13,0,17,18,19,20,19,18,17,0].forEach(function(pose_idx) {
+                [0, 1, 2, 3, 4, 3, 2, 1, 0, 5, 6, 7, 8, 7, 6, 5, 0, 9, 10, 11, 12, 11, 10, 9, 0, 13, 14, 15, 16, 15, 14, 13, 0, 17, 18, 19, 20, 19, 18, 17, 0].forEach(function (pose_idx) {
                     let x = leftHand[pose_idx * 3];
                     let y = leftHand[pose_idx * 3 + 1];
                     if (x != 0 && y != 0) {
@@ -367,7 +372,7 @@ class PoseKeypoints {
                     }
                 });
             }
-        });
+        }.bind(this));
     }
 }
 
@@ -377,7 +382,6 @@ let newBass = false;
 function setupBass(canvas) {
     canvas.stroke(255);
     canvas.fill(255);
-    canvas.textAlign(CENTER, CENTER);
     // React to MIDI message
     midiInput.callbacks[CHANNELS.BASS][MIDI_Message.NOTE_ON_CMD].push(function (msg) {
         if (dots.length < 1000) {
@@ -399,34 +403,359 @@ function drawBass(canvas) {
 
 // SYNTH LAYER
 let neon;
-let synthCount = 1;
+let synthCountX = 1;
+let synthCountY = 1;
 function setupSynth(canvas) {
     neon = new Neon();
     // React to MIDI message
     midiInput.callbacks[CHANNELS.SYNTH][MIDI_Message.NOTE_ON_CMD].push(function (msg) {
-        if (midiInput.getMTCMilliseconds() < 84233) {
-            synthCount = 1;
-        } else if (midiInput.getMTCMilliseconds() < 89000) {
-            synthCount = 2;
+        if (mtcMillis < 84233) {
+            synthCountX = 1;
+            synthCountY = 1;
+        } else if (mtcMillis < 89000) {
+            synthCountX = 2;
+            synthCountY = 2;
         } else {
-            synthCount = 3;
+            synthCountX = 3;
+            synthCountY = 2;
         }
         neon.addRandomPoint();
     });
 }
 function drawSynth(canvas) {
     canvas.background(32, 100);
-    for (let i = 0; i < synthCount; i++) {
-        for (let j = 0; j < synthCount; j++) {
+    for (let i = 0; i < synthCountX; i++) {
+        for (let j = 0; j < synthCountY; j++) {
             canvas.push();
-            let denom = synthCount + 1;
-            canvas.translate(width / denom + i * width / denom, height / denom + j * height / denom);
+            let denomX = synthCountX + 1;
+            let denomY = synthCountY + 1;
+            canvas.translate(width / denomX + i * width / denomX, height / denomY + j * height / denomY);
             neon.draw(canvas);
             canvas.pop();
         }
     }
     let speed = 4;
     canvas.image(canvas, -speed / 2, -speed / 2, width + speed, height + speed);
+}
+
+
+// STARFIELD LAYER
+let starfield;
+let sky;
+let wormholes = [];
+let numWorms = 5;
+function setupStarfield(canvas) {
+    starfield = new Starfield();
+    // React to MIDI message
+    midiInput.callbacks[CHANNELS.STRINGS][MIDI_Message.NOTE_ON_CMD].push(function (msg) {
+        starfield.life++;
+    });
+    midiInput.callbacks[CHANNELS.STRINGS][MIDI_Message.NOTE_OFF_CMD].push(function (msg) {
+        starfield.life = max(starfield.life - 1, 0);
+    });
+
+    sky = new Sky();
+    // React to MIDI message
+    midiInput.callbacks[CHANNELS.STRINGS][MIDI_Message.NOTE_ON_CMD].push(function (msg) {
+        if (mtcMillis > 109866) {
+            sky.numBars++;
+        }
+    });
+    midiInput.callbacks[CHANNELS.STRINGS][MIDI_Message.NOTE_OFF_CMD].push(function (msg) {
+        strings.numBars--;
+        strings.numBars = max(strings.numBars, 0);
+    });
+
+    for (let i = 0; i < 100; i++) {
+        wormholes.push(new Wormhole());
+    }
+    // React to MIDI message
+    midiInput.callbacks[CHANNELS.SYNTH][MIDI_Message.NOTE_ON_CMD].push(function (msg) {
+        wormholes.map(wh => wh.changeDirection());
+    });
+}
+function drawStarfield(canvas) {
+    if (mtcMillis > 129866) {
+        canvas.background(0);
+
+        numWorms = 8 * int(1 + (mtcMillis - 129866) / 5000);
+        wormholes.slice(0, numWorms).map(wh => wh.draw(canvas));
+
+        if (mtcMillis > 149800 && mtcMillis < 169933) {
+            canvas.translate(width / 2, height / 2);
+            if (int(1 + (mtcMillis - 129866) / 5000) % 2) {
+                canvas.rotate(0.02);
+            } else {
+                canvas.rotate(-0.02);
+            }
+            canvas.translate(-width / 2, -height / 2);
+        }
+        // let speed = 10;
+        // canvas.image(canvas, -speed / 2, -speed / 2, width + speed, height + speed);
+    } else {
+        sky.draw(canvas);
+        starfield.draw(canvas);
+    }
+}
+
+class Ring {
+    constructor(pos, radius) {
+        this.pos = pos;
+        this.radius = radius;
+        this.thickness = 2;
+    }
+
+    draw(cnv) {
+        cnv.noFill();
+        let alpha = 255 - 255 * (mtcMillis - 168000) / (169933 - 168000);
+        cnv.stroke(alpha);
+        cnv.strokeWeight(this.thickness);
+        cnv.ellipse(this.pos.x, this.pos.y, this.radius, this.radius);
+    }
+}
+class Wormhole {
+    constructor() {
+        this.ringRadius = 10;
+        this.rings = [];
+        this.maxNumRings = 10;
+        this.pos = createVector(width / 2, height / 2);
+        this.vel = random([
+            createVector(this.ringRadius, -this.ringRadius),
+            createVector(-this.ringRadius, -this.ringRadius),
+            createVector(-this.ringRadius, this.ringRadius),
+            createVector(this.ringRadius, this.ringRadius)
+        ]);
+    }
+
+    changeDirection() {
+        // console.log((mtcBarNumber - 52));
+        // console.log(int((mtcBarNumber - 52) / 2) % 2);
+        // if (int((mtcBeatNumber - 52*4 - 1) / 8) % 2) {
+        if (int(1 + (mtcMillis - 129866) / 5000) % 2) {
+
+            if (Math.sign(this.vel.x) == Math.sign(this.vel.y)) {
+                this.vel = random([
+                    createVector(this.ringRadius, -this.ringRadius),
+                    createVector(-this.ringRadius, this.ringRadius)
+                ]);
+            } else {
+                this.vel = random([
+                    createVector(this.ringRadius, this.ringRadius),
+                    createVector(-this.ringRadius, -this.ringRadius)
+                ]);
+            }
+        } else {
+            if (this.vel.x == 0) {
+                this.vel = random([
+                    createVector(this.ringRadius, 0),
+                    createVector(-this.ringRadius, 0)
+                ]);
+            } else {
+                this.vel = random([
+                    createVector(0, this.ringRadius),
+                    createVector(0, -this.ringRadius)
+                ]);
+            }
+        }
+    }
+
+    newRing() {
+        let r = new Ring(createVector(this.pos.x, this.pos.y), this.ringRadius);
+        this.rings.push(r);
+        if (this.rings.length > this.maxNumRings) {
+            this.rings.shift();
+        }
+    }
+
+    draw(cnv) {
+        this.rings.forEach(function (ring) {
+            ring.draw(cnv);
+        })
+        this.newRing();
+
+        this.pos.add(this.vel);
+        if (mtcMillis < 164000) {
+            if (this.pos.x < 0 || this.pos.x > width) {
+                this.vel.x *= -1;
+            }
+            if (this.pos.y < 0 || this.pos.y > height) {
+                this.vel.y *= -1;
+            }
+        }
+    }
+}
+
+// STROBE LAYER
+let strobeAlpha = 255;
+function setupStrobe(canvas) {
+    // React to MIDI message
+    midiInput.callbacks[CHANNELS.EPCOMP][MIDI_Message.NOTE_ON_CMD].push(function (msg) {
+        if (abs(mtcMillis - lastStrobe) > 100) { // Ignore messages that are too nearby
+            strobeAlpha = 255;
+        }
+        lastStrobe = mtcMillis;
+    });
+}
+function drawStrobe(canvas) {
+    strobeAlpha -= 10;
+    canvas.clear();
+    if (mtcMillis < 189800) {
+        canvas.background(0, strobeAlpha);
+    }
+}
+
+// BRIDGE LAYER
+function setupBridge(canvas) {
+    canvas.textFont(fonts[0]);
+    canvas.textSize(200);
+    canvas.background(black);
+    canvas.fill(white);
+    canvas.textAlign(CENTER);
+    canvas.text("ONE", width / 2, height * 2 / 5);
+    canvas.text("LAST", width / 2, height * 3 / 5);
+    canvas.text("TIME", width / 2, height * 4 / 5);
+}
+function drawBridge(canvas) {
+}
+
+// PIXELGRID LAYER
+let resolutionX = 100;
+let resolutionY = 50;
+let particles = [];
+let lastStrobe = 0;
+function setupPixelGrid(canvas) {
+    canvas.noStroke();
+}
+function drawPixelGrid(canvas) {
+    let w = width / resolutionX;
+    let h = height / resolutionY;
+
+    // Fire
+    if (mtcMillis < 199800) {
+        // Paint background
+        canvas.background(0);
+        // console.log("I am clearing though");
+        // canvas.image(backgroundImg, 0, 0);
+
+        // Draw fire
+        let timeRatio = (mtcMillis - 170000) / (200000 - 170000);
+        let maxHeight = 2 * height * timeRatio;
+        if (mtcMillis < 202000) {
+            for (let i = 0; i < 5 + timeRatio*5; i++) {
+                let p = new FireParticle(maxHeight);
+
+                if (mtcMillis > 189866) {
+                    if (random(100) > 98) {
+                        p.x = random(width);
+                        p.y = random(height);
+                    }
+                }
+                particles.push(p);
+            }
+        }
+        for (let n = particles.length - 1; n >= 0; n--) {
+            particles[n].update();
+            // Convert to grid coordinates
+            let i = int(particles[n].x / w);
+            let j = int(particles[n].y / h);
+            let x = i * w;
+            let y = j * h;
+            // Draw pixel
+            // Increase probability of redness if close to edges
+            let distFromCenter = abs(particles[n].x - width/2);
+            let distFromBottom = height - 50 - particles[n].y;
+            if (
+                random(particles[n].maxWidth) < distFromCenter || 
+                random(particles[n].maxHeight / 2) < distFromBottom
+            ) {
+                canvas.fill(red);
+            } else {
+                canvas.fill(yellow);
+            }
+            if (mtcMillis > 189866) {
+                if (random(100) > 95) {
+                    canvas.fill(random(colorPalette));
+                }
+            }
+            canvas.rect(x, y, w, h);
+            // Draw multiple
+            while (random(10) > 3) {
+                let i_ = i + int(random(-2, 2));
+                let j_ = j + int(random(-2, 2));
+                canvas.rect(i_ * w, j_ * h, w, h);
+            }
+            // Grow fire height
+            particles[n].maxHeight = maxHeight;
+            
+            // End of life
+            if (particles[n].finished()) {
+                particles.splice(n, 1);
+            }
+        }
+    } else {
+
+        // canvas.background(0);
+        // Draw background
+        let timeRatio = (mtcMillis - 199800) / (210000 - 199800);
+        let expansion = timeRatio * width/2;
+        for (let n = 0; n < 50; n++) {
+            let x = int(random(width/2 - expansion, width/2 + expansion));
+            let y = int(random(height/2 - expansion, height/2 + expansion));
+            let i = int(x / w);
+            let j = int(y / h);
+            x = i * w;
+            y = j * h;
+            canvas.fill(random([black, 50]));
+            if (random(100) > 99) {
+                canvas.fill(random(colorPalette));
+            }
+            canvas.rect(x, y, w, h);
+        }
+
+        for (let n = 0; n < 20; n++) {
+            let i = int(random(resolutionX / 4, 3 * resolutionX / 4));
+            let j = int(random(0, resolutionY));
+
+            // Draw on the text
+            let x = i * w;
+            let y = j * h;
+            canvas.fill(random(colorPalette));
+            let px = layerBridge.canvas.get(x, y);
+            if (px[0] == 255) {
+                canvas.fill(random([red, red, yellow]));
+                canvas.rect(x, y, w, h);
+            }
+        }
+    }
+    // // Draw text
+    // if (mtcMillis > 199900) {
+    // }
+    // // if (!strobe && ) {
+    // //     canvas.filter(GRAY);
+    // // }
+}
+class FireParticle {
+    constructor(maxHeight) {
+        this.maxHeight = maxHeight;
+        this.maxWidth = maxHeight * 100 / height;
+        this.x = random(width/2 - this.maxWidth, width/2 + this.maxWidth);
+        this.y = height - 50 - (abs(this.x - width/2) ** 1.1) / 5; // Curve up as we get further from the center
+        this.vx = random(-1, 1);
+        this.vy = random(-5, -1);
+        this.alpha = 255;
+        this.d = 20;
+    }
+
+    finished() {
+        return random(this.alpha) < 5;
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.alpha = 255 - 255 * (height - this.y) / this.maxHeight;
+        this.d -= random(0.05, 0.1);
+    }
 }
 
 class EPComp {
@@ -494,26 +823,7 @@ class Strings {
     constructor() {
         this.thickness = 5;
         this.numStrings = 0;
-    }
-    draw(cnv) {
-        let xOffset = width / 4;
-        let xWidth = width / 2;
-        let y = height * 2 / 3;
-        for (var i = 0; i < this.numStrings; i++) {
-            let x = random(xOffset, xOffset + xWidth);
-            cnv.stroke(random(colorPalette));
-            cnv.strokeWeight(random(2, 5));
-            cnv.line(x, y, x, 0);
-            cnv.line(x, y, width * (x - xOffset) / xWidth, height);
-        }
-    };
-}
-
-class StringsRadial {
-    constructor() {
-        this.thickness = 5;
-        this.numStrings = 0;
-        this.pos = createVector(width/2, height/2);
+        this.pos = createVector(width / 2, height / 2);
         this.vel = createVector(100, 100);
         this.jitter = 500;
     }
@@ -521,31 +831,40 @@ class StringsRadial {
         cnv.push();
         cnv.stroke(white);
         for (var i = 0; i < this.numStrings; i++) {
-            if (midiInput.getMTCMilliseconds() < 103200) {
+
+            // Part one - waterfall lines
+            if (mtcMillis < 99200) {
+                let xOffset = width / 4;
+                let xWidth = width / 2;
+                let y = height * 2 / 3;
+                let x = random(xOffset, xOffset + xWidth);
+                cnv.stroke(random(colorPalette));
+                cnv.strokeWeight(random(2, 5));
+                cnv.line(x, y, x, 0);
+                cnv.line(x, y, width * (x - xOffset) / xWidth, height);
+
+                // Part two - campfire kindling
+            } else if (mtcMillis < 103200) {
+                cnv.stroke(random(colorPalette));
                 cnv.strokeWeight(random(2, 5));
                 cnv.line(
-                    this.pos.x + random(-this.jitter, this.jitter), 
+                    this.pos.x + random(-this.jitter, this.jitter),
                     this.pos.y + random(-this.jitter, this.jitter),
-                    this.pos.x + random(-this.jitter, this.jitter), 
+                    this.pos.x + random(-this.jitter, this.jitter),
                     this.pos.y + random(-this.jitter, this.jitter));
-            } else { // if (midiInput.getMTCMilliseconds() < 106266) {
+
+                // Part three - colored polygons
+            } else { //if (mtcMillis < 109866) {
                 cnv.noStroke();
-                cnv.fill(random(colorPalette));
+                let c = color(random(colorPalette));
+                c.setAlpha(100);
+                cnv.fill(c);
                 cnv.beginShape(TRIANGLE_STRIP);
                 cnv.vertex(this.pos.x + random(-this.jitter, this.jitter), this.pos.y + random(-this.jitter, this.jitter));
                 cnv.vertex(this.pos.x + random(-this.jitter, this.jitter), this.pos.y + random(-this.jitter, this.jitter));
                 cnv.vertex(this.pos.x + random(-this.jitter, this.jitter), this.pos.y + random(-this.jitter, this.jitter));
                 cnv.endShape();
             }
-            // } else {
-            //     cnv.noStroke();
-            //     cnv.fill(white);
-            //     cnv.beginShape(TRIANGLE_STRIP);
-            //     cnv.vertex(this.pos.x + random(-this.jitter, this.jitter), this.pos.y + random(-this.jitter, this.jitter));
-            //     cnv.vertex(this.pos.x + random(-this.jitter, this.jitter), this.pos.y + random(-this.jitter, this.jitter));
-            //     cnv.vertex(this.pos.x + random(-this.jitter, this.jitter), this.pos.y + random(-this.jitter, this.jitter));
-            //     cnv.endShape();
-            // }
         }
         this.pos.add(this.vel);
         if (this.pos.x < 0 || this.pos.x > width) {
@@ -580,7 +899,7 @@ class EPLine {
             cnv.strokeWeight(this.thickness);
 
             cnv.noFill();
-            if (midiInput.getMTCMilliseconds() > 20000) {
+            if (mtcMillis > 20000) {
                 cnv.fill(this.color);
             }
             cnv.rect(xpos, height / 3, width / 12, height / 3);
@@ -603,7 +922,53 @@ class Painter {
     }
 
     draw(cnv) {
-        if (midiInput.getMTCMilliseconds() < 109000) {
+        if (mtcMillis > 219600) {
+            cnv.fill(blue);
+            cnv.beginShape(TRIANGLE_STRIP);
+            for (var i = 0; i < this.memory.length; i++) {
+                var x = this.memory[i].x + random(-this.brushWidth, this.brushWidth);
+                var y = this.memory[i].y + random(-this.brushWidth, this.brushWidth);
+                cnv.vertex(x, y);
+            }
+            for (var i = this.memory.length - 1; i >= 0; i--) {
+                var x = this.memory[i].x + random(-this.brushWidth, this.brushWidth);
+                var y = this.memory[i].y + random(-this.brushWidth, this.brushWidth);
+                cnv.vertex(x, y);
+            }
+            cnv.endShape();
+
+        } else if (mtcMillis > 109000) {
+            cnv.stroke(random(colorPalette));
+            cnv.strokeWeight(5);
+            cnv.beginShape(TRIANGLE_STRIP);
+            for (var i = 0; i < this.memory.length; i++) {
+                var x = this.memory[i].x + random(-this.brushWidth, this.brushWidth);
+                var y = this.memory[i].y + random(-this.brushWidth, this.brushWidth);
+                cnv.vertex(x, y);
+            }
+            for (var i = this.memory.length - 1; i >= 0; i--) {
+                var x = this.memory[i].x + random(-this.brushWidth, this.brushWidth);
+                var y = this.memory[i].y + random(-this.brushWidth, this.brushWidth);
+                cnv.vertex(x, y);
+            }
+            cnv.endShape();
+
+            cnv.fill(black);
+            cnv.noStroke();
+            cnv.beginShape(TRIANGLE_STRIP);
+            for (var i = 0; i < this.memory.length; i++) {
+                var x = this.memory[i].x + random(-this.brushWidth, this.brushWidth);
+                var y = this.memory[i].y + random(-this.brushWidth, this.brushWidth);
+                cnv.vertex(x, y);
+            }
+            for (var i = this.memory.length - 1; i >= 0; i--) {
+                var x = this.memory[i].x + random(-this.brushWidth, this.brushWidth);
+                var y = this.memory[i].y + random(-this.brushWidth, this.brushWidth);
+                cnv.vertex(x, y);
+            }
+            cnv.endShape();
+            
+        } else if (mtcMillis < 109000) {
             cnv.fill(black);
             cnv.stroke(black);
             cnv.beginShape();
@@ -619,21 +984,6 @@ class Painter {
             }
             cnv.endShape();
 
-        } else {
-            cnv.fill(black);
-            cnv.noStroke();
-            cnv.beginShape(TRIANGLE_STRIP);
-            for (var i = 0; i < this.memory.length; i++) {
-                var x = this.memory[i].x + random(-this.brushWidth, this.brushWidth);
-                var y = this.memory[i].y + random(-this.brushWidth, this.brushWidth);
-                cnv.vertex(x, y);
-            }
-            for (var i = this.memory.length - 1; i >= 0; i--) {
-                var x = this.memory[i].x + random(-this.brushWidth, this.brushWidth);
-                var y = this.memory[i].y + random(-this.brushWidth, this.brushWidth);
-                cnv.vertex(x, y);
-            }
-            cnv.endShape();
         }
 
     }
@@ -769,5 +1119,80 @@ class Neon {
         }
         cnv.endShape();
         cnv.pop();
+    }
+}
+
+class Sky {
+    constructor() {
+        this.thickness = 5;
+        this.numBars = 0;
+    }
+    draw(cnv) {
+        let horizonHeight = 200;
+        if (mtcMillis < 130000) {
+            for (var i = 0; i < this.numBars; i++) {
+                cnv.stroke(0);
+                cnv.strokeWeight(20);
+                for (let i = 0; i < 5; i++) {
+                    let x = random(width);
+                    let y = height - horizonHeight * sin(180 * x / width);
+                    cnv.line(x, 0, x, y);
+                }
+            }
+        }
+
+        if (mtcMillis > 127400 && mtcMillis < 130000) {
+            let shift = horizonHeight * (mtcMillis - 127400) / (130000 - 127400);
+            let copyHeight = int(horizonHeight * 2);
+            cnv.copy(cnv, 0, height - copyHeight, width, copyHeight, 0, height - copyHeight + shift, width, copyHeight);
+        }
+    };
+}
+
+class Starfield {
+    constructor() {
+        this.memory = [];
+        this.maxLength = 50;
+        this.edges = [];
+        this.maxEdges = 10;
+        // Stars
+        this.jitter = 1;
+        this.radius = 5;
+        this.life = false;
+    }
+
+    addRandomPoint() {
+        let x = random(width);
+        let y = random(height);
+        this.addPoint(x, y);
+    }
+
+    addPoint(x, y) {
+        this.memory.push(createVector(x, y));
+        if (this.memory.length > this.maxLength) {
+            this.memory.shift();
+        }
+    }
+
+    draw(cnv) {
+        for (let i = 0; i < this.memory.length; i++) {
+            cnv.fill(white);
+            cnv.noStroke();
+            cnv.ellipse(
+                this.memory[i].x + random(-this.jitter, this.jitter),
+                this.memory[i].y + random(-this.jitter, this.jitter),
+                5, 5);
+
+            if (mtcMillis > 119800) {
+                let awayFromCenterVec = p5.Vector.sub(this.memory[i], createVector(width / 2, height / 2)).div(50);
+                this.memory[i].add(awayFromCenterVec);
+            }
+        }
+
+        if (this.life) {
+            for (let i = 0; i < 3; i++) {
+                this.addRandomPoint();
+            }
+        }
     }
 }
